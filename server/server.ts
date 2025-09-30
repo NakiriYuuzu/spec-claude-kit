@@ -2,7 +2,7 @@ import { Elysia } from 'elysia'
 import { cors } from '@elysiajs/cors'
 import { swagger } from '@elysiajs/swagger'
 import { bootLogger, stopEvent, prettyLog, ErrorMessages } from './utils'
-import { useRoot } from './routes'
+import { useRoot } from './utils'
 import { useCCSDKRoutes } from './ccsdk-new/routes'
 // import { useCCSDKNativeRoutes } from './ccsdk-new/routes-elysia-native'
 
