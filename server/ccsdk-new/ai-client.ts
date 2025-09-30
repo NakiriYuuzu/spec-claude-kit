@@ -7,6 +7,7 @@ export class AIClient {
 
 	constructor(options?: Partial<AIQueryOptions>) {
 		this.defaultOptions = {
+            abortController: undefined,
 			maxTurns: 100,
 			cwd: process.cwd(),
 			model: "sonnet",
@@ -16,11 +17,11 @@ export class AIClient {
 				"BashOutput", "KillShell", "ExitPlanMode"
 			],
 			appendSystemPrompt: "You are a helpful AI assistant that helps with coding tasks.",
+            hooks: {},
 			mcpServers: {},
 			permissionMode: "default",
 			includePartialMessages: false,
 			resume: undefined,
-			continue: undefined,
 			...options
 		}
 	}
@@ -30,18 +31,6 @@ export class AIClient {
 		options?: Partial<AIQueryOptions>
 	): AsyncIterable<SDKMessage> {
 		const mergedOptions = { ...this.defaultOptions, ...options }
-
-		// Convert permission mode if needed
-		if (mergedOptions.permissionMode === "acceptEdits") {
-			// @ts-ignore - This is valid in Claude Code SDK
-			mergedOptions.acceptEdits = true
-		} else if (mergedOptions.permissionMode === "bypassPermissions") {
-			// @ts-ignore
-			mergedOptions.bypassPermissions = true
-		} else if (mergedOptions.permissionMode === "plan") {
-			// @ts-ignore
-			mergedOptions.plan = true
-		}
 
 		for await (const message of query({
 			prompt,

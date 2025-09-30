@@ -25,24 +25,31 @@ export interface SystemInfoMessage {
 	type: "system_info"
 }
 
+export interface CancelMessage {
+	type: "cancel"
+	sessionId: string
+}
+
 export type IncomingMessage =
 	| ChatMessage
 	| SubscribeMessage
 	| UnsubscribeMessage
 	| SystemInfoMessage
+	| CancelMessage
 
 // Claude Code SDK types
 export interface AIQueryOptions {
+    abortController?: AbortController | null,
 	maxTurns?: number
 	cwd?: string
 	model?: string
 	allowedTools?: string[]
 	appendSystemPrompt?: string
-	mcpServers?: any
+    hooks?: any,
+    mcpServers?: any,
 	permissionMode?: "default" | "acceptEdits" | "bypassPermissions" | "plan"
 	includePartialMessages?: boolean
 	resume?: string // Add support for session resume
-	continue?: boolean // Add support for continuing conversation
 }
 
 // Response types

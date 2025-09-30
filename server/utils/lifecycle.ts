@@ -6,5 +6,5 @@ export async function stopEvent() {
 	setTimeout(() => {
 		console.log('Good Bye~')
 		process.exit()
-	}, 5000)
+	}, 1000)
 }

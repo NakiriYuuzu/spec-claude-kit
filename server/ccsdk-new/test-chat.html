@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude WebSocket Chat</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .chat-container {
+            width: 100%;
+            max-width: 800px;
+            height: 90vh;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-header h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ef4444;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: #22c55e;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f9fafb;
+        }
+
+        .message {
+            display: flex;
+            margin-bottom: 16px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            word-wrap: break-word;
+        }
+
+        .message.assistant .message-content {
+            background: white;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .message.system .message-content {
+            background: #fef3c7;
+            border: 1px solid #fbbf24;
+            color: #92400e;
+            max-width: 100%;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .message.error .message-content {
+            background: #fee2e2;
+            border: 1px solid #ef4444;
+            color: #991b1b;
+            max-width: 100%;
+        }
+
+        .message.info .message-content {
+            background: #dbeafe;
+            border: 1px solid #3b82f6;
+            color: #1e40af;
+            max-width: 100%;
+            font-size: 13px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 8px 16px;
+            text-align: left;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #1e40af;
+        }
+
+        .info-value {
+            color: #1e3a8a;
+            word-break: break-all;
+        }
+
+        .info-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 4px;
+        }
+
+        .info-badge {
+            background: #3b82f6;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        .info-section {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #93c5fd;
+        }
+
+        .info-section:first-child {
+            margin-top: 0;
+            padding-top: 0;
+            border-top: none;
+        }
+
+        .message-time {
+            font-size: 11px;
+            color: #9ca3af;
+            margin-top: 4px;
+        }
+
+        .chat-input-container {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .chat-input-wrapper {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .chat-input {
+            flex: 1;
+            min-height: 44px;
+            max-height: 120px;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 14px;
+            font-family: inherit;
+            resize: none;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .chat-input:focus {
+            border-color: #667eea;
+        }
+
+        .send-button {
+            min-width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 18px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .send-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .send-button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .send-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .control-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .control-button {
+            padding: 8px 16px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .control-button:hover {
+            background: #f9fafb;
+            border-color: #667eea;
+        }
+
+        .control-button.danger {
+            color: #ef4444;
+        }
+
+        .control-button.danger:hover {
+            background: #fef2f2;
+            border-color: #ef4444;
+        }
+
+        /* Loading animation */
+        .typing-indicator {
+            display: none;
+            padding: 12px 16px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            width: fit-content;
+        }
+
+        .typing-indicator.active {
+            display: flex;
+            gap: 4px;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #9ca3af;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% {
+                transform: translateY(0);
+            }
+            30% {
+                transform: translateY(-10px);
+            }
+        }
+
+        /* Scrollbar styling */
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        /* Markdown styles */
+        .message.assistant .message-content {
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .message.assistant .message-content h1,
+        .message.assistant .message-content h2,
+        .message.assistant .message-content h3,
+        .message.assistant .message-content h4,
+        .message.assistant .message-content h5,
+        .message.assistant .message-content h6 {
+            margin-top: 16px;
+            margin-bottom: 8px;
+            font-weight: 600;
+            line-height: 1.25;
+        }
+
+        .message.assistant .message-content h1 { font-size: 1.5em; }
+        .message.assistant .message-content h2 { font-size: 1.3em; }
+        .message.assistant .message-content h3 { font-size: 1.1em; }
+
+        .message.assistant .message-content p {
+            margin-bottom: 12px;
+        }
+
+        .message.assistant .message-content ul,
+        .message.assistant .message-content ol {
+            margin-bottom: 12px;
+            padding-left: 24px;
+        }
+
+        .message.assistant .message-content li {
+            margin-bottom: 4px;
+        }
+
+        .message.assistant .message-content code {
+            background: #f3f4f6;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+            font-size: 0.9em;
+            color: #e11d48;
+        }
+
+        .message.assistant .message-content pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 12px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .code-copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: #475569;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s, background 0.2s;
+        }
+
+        .message.assistant .message-content pre:hover .code-copy-btn {
+            opacity: 1;
+        }
+
+        .code-copy-btn:hover {
+            background: #64748b;
+        }
+
+        .code-copy-btn.copied {
+            background: #22c55e;
+        }
+
+        .message.assistant .message-content pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+            font-size: 0.85em;
+        }
+
+        .message.assistant .message-content blockquote {
+            border-left: 4px solid #667eea;
+            padding-left: 12px;
+            margin: 12px 0;
+            color: #64748b;
+            font-style: italic;
+        }
+
+        .message.assistant .message-content a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .message.assistant .message-content a:hover {
+            text-decoration: underline;
+        }
+
+        .message.assistant .message-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 12px;
+        }
+
+        .message.assistant .message-content table th,
+        .message.assistant .message-content table td {
+            border: 1px solid #e5e7eb;
+            padding: 8px;
+            text-align: left;
+        }
+
+        .message.assistant .message-content table th {
+            background: #f9fafb;
+            font-weight: 600;
+        }
+
+        .message.assistant .message-content hr {
+            border: none;
+            border-top: 1px solid #e5e7eb;
+            margin: 16px 0;
+        }
+
+        .message.assistant .message-content img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1>🤖 Claude WebSocket Chat</h1>
+            <div class="status-indicator">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Disconnected</span>
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            <div class="message system">
+                <div class="message-content">
+                    Welcome! Click "Connect" to start chatting with Claude.
+                </div>
+            </div>
+        </div>
+
+        <div class="typing-indicator" id="typingIndicator">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+        </div>
+
+        <div class="chat-input-container">
+            <div class="chat-input-wrapper">
+                <textarea
+                    id="chatInput"
+                    class="chat-input"
+                    placeholder="Type your message..."
+                    rows="1"
+                    disabled
+                ></textarea>
+                <button id="sendButton" class="send-button" disabled>
+                    ➤
+                </button>
+            </div>
+            <div class="control-buttons">
+                <button class="control-button" id="connectButton">Connect</button>
+                <button class="control-button" id="newConversationButton" disabled>New Conversation</button>
+                <button class="control-button danger" id="cancelButton" disabled>Cancel Query</button>
+                <button class="control-button danger" id="clearButton">Clear Messages</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 配置 marked.js
+        marked.setOptions({
+            breaks: true,
+            gfm: true,
+            headerIds: false,
+            mangle: false
+        });
+
+        let ws = null;
+        let currentSessionId = null;
+        let isConnected = false;
+
+        const elements = {
+            messages: document.getElementById('chatMessages'),
+            input: document.getElementById('chatInput'),
+            sendButton: document.getElementById('sendButton'),
+            connectButton: document.getElementById('connectButton'),
+            newConversationButton: document.getElementById('newConversationButton'),
+            cancelButton: document.getElementById('cancelButton'),
+            clearButton: document.getElementById('clearButton'),
+            statusDot: document.getElementById('statusDot'),
+            statusText: document.getElementById('statusText'),
+            typingIndicator: document.getElementById('typingIndicator')
+        };
+
+        // Auto-resize textarea
+        elements.input.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+
+        // Send message on Enter (Shift+Enter for new line)
+        elements.input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        function updateStatus(connected) {
+            isConnected = connected;
+            elements.statusDot.classList.toggle('connected', connected);
+            elements.statusText.textContent = connected ? 'Connected' : 'Disconnected';
+            elements.input.disabled = !connected;
+            elements.sendButton.disabled = !connected;
+            elements.connectButton.textContent = connected ? 'Disconnect' : 'Connect';
+            elements.newConversationButton.disabled = !connected;
+            elements.cancelButton.disabled = !connected;
+        }
+
+        function addMessage(content, type = 'system') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            // 如果是 assistant 消息，使用 Markdown 渲染
+            if (type === 'assistant') {
+                const rawHtml = marked.parse(content);
+                const cleanHtml = DOMPurify.sanitize(rawHtml);
+                contentDiv.innerHTML = cleanHtml;
+
+                // 為程式碼區塊加入複製按鈕
+                const preElements = contentDiv.querySelectorAll('pre');
+                preElements.forEach(pre => {
+                    const copyBtn = document.createElement('button');
+                    copyBtn.className = 'code-copy-btn';
+                    copyBtn.textContent = 'Copy';
+                    copyBtn.onclick = () => {
+                        const code = pre.querySelector('code')?.textContent || pre.textContent;
+                        navigator.clipboard.writeText(code).then(() => {
+                            copyBtn.textContent = 'Copied!';
+                            copyBtn.classList.add('copied');
+                            setTimeout(() => {
+                                copyBtn.textContent = 'Copy';
+                                copyBtn.classList.remove('copied');
+                            }, 2000);
+                        });
+                    };
+                    pre.appendChild(copyBtn);
+                });
+            } else {
+                contentDiv.textContent = content;
+            }
+
+            const timeDiv = document.createElement('div');
+            timeDiv.className = 'message-time';
+            timeDiv.textContent = new Date().toLocaleTimeString();
+
+            messageDiv.appendChild(contentDiv);
+            if (type !== 'system') {
+                contentDiv.appendChild(timeDiv);
+            }
+
+            elements.messages.appendChild(messageDiv);
+            elements.messages.scrollTop = elements.messages.scrollHeight;
+        }
+
+        function addSessionInfo(sessionInfo) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message info';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            const html = `
+                <div class="info-grid">
+                    <span class="info-label">📋 Session ID:</span>
+                    <span class="info-value">${sessionInfo.id}</span>
+
+                    <span class="info-label">💬 Messages:</span>
+                    <span class="info-value">${sessionInfo.messageCount}</span>
+
+                    <span class="info-label">🔄 Active:</span>
+                    <span class="info-value">${sessionInfo.isActive ? '✅ Yes' : '❌ No'}</span>
+
+                    <span class="info-label">🕐 Created:</span>
+                    <span class="info-value">${new Date(sessionInfo.createdAt).toLocaleString()}</span>
+
+                    <span class="info-label">⏰ Last Activity:</span>
+                    <span class="info-value">${new Date(sessionInfo.lastActivity).toLocaleString()}</span>
+                </div>
+            `;
+
+            contentDiv.innerHTML = html;
+            messageDiv.appendChild(contentDiv);
+            elements.messages.appendChild(messageDiv);
+            elements.messages.scrollTop = elements.messages.scrollHeight;
+        }
+
+        function addSystemInit(initData) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message info';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+
+            const mcpServers = initData.mcp_servers || [];
+            const mcpHtml = mcpServers.length > 0
+                ? mcpServers.map(s => `<span class="info-badge">${s.name} (${s.status})</span>`).join('')
+                : '<span class="info-value">None</span>';
+
+            const html = `
+                <div class="info-section">
+                    <div class="info-grid">
+                        <span class="info-label">🆔 SDK Session:</span>
+                        <span class="info-value">${initData.session_id}</span>
+
+                        <span class="info-label">🤖 Model:</span>
+                        <span class="info-value">${initData.model}</span>
+
+                        <span class="info-label">📁 Working Dir:</span>
+                        <span class="info-value">${initData.cwd}</span>
+
+                        <span class="info-label">🔒 Permission Mode:</span>
+                        <span class="info-value">${initData.permissionMode}</span>
+                    </div>
+                </div>
+
+                <div class="info-section">
+                    <div class="info-label">🔌 MCP Servers:</div>
+                    <div class="info-list">${mcpHtml}</div>
+                </div>
+
+                <div class="info-section">
+                    <div class="info-label">🛠️ Available Tools: ${initData.tools?.length || 0}</div>
+                </div>
+            `;
+
+            contentDiv.innerHTML = html;
+            messageDiv.appendChild(contentDiv);
+            elements.messages.appendChild(messageDiv);
+            elements.messages.scrollTop = elements.messages.scrollHeight;
+        }
+
+        function showTyping(show) {
+            elements.typingIndicator.classList.toggle('active', show);
+            if (show) {
+                elements.messages.scrollTop = elements.messages.scrollHeight;
+            }
+        }
+
+        function connect() {
+            if (isConnected) {
+                disconnect();
+                return;
+            }
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/api/ccsdk/ws`;
+
+            addMessage(`Connecting to ${wsUrl}...`, 'system');
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                updateStatus(true);
+                addMessage('Connected successfully! You can start chatting now.', 'system');
+            };
+
+            ws.onmessage = (event) => {
+                showTyping(false);
+
+                try {
+                    const data = JSON.parse(event.data);
+
+                    if (data.sessionId) {
+                        currentSessionId = data.sessionId;
+                    }
+
+                    // 處理不同類型的消息
+                    switch (data.type) {
+                        case 'session_info':
+                            addSessionInfo(data.data);
+                            break;
+                        case 'system':
+                            if (data.subtype === 'init') {
+                                addSystemInit(data.data);
+                            } else {
+                                addMessage(`System: ${data.subtype}`, 'system');
+                            }
+                            break;
+                        case 'assistant_message':
+                            addMessage(data.content, 'assistant');
+                            break;
+                        case 'error':
+                            addMessage(`❌ Error: ${data.error}`, 'error');
+                            break;
+                        case 'result':
+                            // 不顯示 result 消息
+                            break;
+                        case 'cancelled':
+                            addMessage(`🚫 ${data.message}`, 'system');
+                            break;
+                        case 'cancelling':
+                            addMessage(`⏸️ ${data.message}`, 'system');
+                            break;
+                        default:
+                            if (data.content) {
+                                addMessage(data.content, 'assistant');
+                            }
+                    }
+                } catch (e) {
+                    console.error('Failed to parse message:', e);
+                    addMessage(event.data, 'assistant');
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                addMessage('Connection error occurred', 'error');
+            };
+
+            ws.onclose = (event) => {
+                updateStatus(false);
+                addMessage(`Disconnected (code: ${event.code})`, 'system');
+                ws = null;
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function sendMessage() {
+            const content = elements.input.value.trim();
+            if (!content || !isConnected) return;
+
+            const message = {
+                type: 'chat',
+                content: content,
+                sessionId: currentSessionId,
+                newConversation: currentSessionId === null
+            };
+
+            addMessage(content, 'user');
+            ws.send(JSON.stringify(message));
+
+            elements.input.value = '';
+            elements.input.style.height = 'auto';
+            showTyping(true);
+        }
+
+        function newConversation() {
+            currentSessionId = null;
+            addMessage('Starting new conversation...', 'system');
+        }
+
+        function clearMessages() {
+            const systemMessage = elements.messages.querySelector('.message.system');
+            elements.messages.innerHTML = '';
+            if (systemMessage) {
+                elements.messages.appendChild(systemMessage.cloneNode(true));
+            }
+        }
+
+        function cancelQuery() {
+            if (!currentSessionId || !isConnected) {
+                addMessage('No active session to cancel', 'error');
+                return;
+            }
+
+            const message = {
+                type: 'cancel',
+                sessionId: currentSessionId
+            };
+
+            ws.send(JSON.stringify(message));
+            addMessage('⏸️ Sending cancel request...', 'system');
+        }
+
+        // Event listeners
+        elements.sendButton.addEventListener('click', sendMessage);
+        elements.connectButton.addEventListener('click', connect);
+        elements.newConversationButton.addEventListener('click', newConversation);
+        elements.cancelButton.addEventListener('click', cancelQuery);
+        elements.clearButton.addEventListener('click', clearMessages);
+
+        // Auto-connect on load
+        window.addEventListener('load', () => {
+            console.log('Page loaded, ready to connect');
+        });
+    </script>
+</body>
+</html>

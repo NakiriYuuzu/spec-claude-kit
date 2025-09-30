@@ -3,8 +3,8 @@ import { cors } from '@elysiajs/cors'
 import { swagger } from '@elysiajs/swagger'
 import { bootLogger, stopEvent, prettyLog, ErrorMessages } from './utils'
 import { useRoot } from './routes'
-// import { useCCSDKRoutes } from './ccsdk-new/routes'
-import { useCCSDKNativeRoutes } from './ccsdk-new/routes-elysia-native'
+import { useCCSDKRoutes } from './ccsdk-new/routes'
+// import { useCCSDKNativeRoutes } from './ccsdk-new/routes-elysia-native'
 
 try {
 	const app = new Elysia()
@@ -18,8 +18,7 @@ try {
 	useRoot(app)
 
 	// Add Claude Code SDK routes (Native ElysiaJS implementation)
-	// useCCSDKRoutes(app)
-	useCCSDKNativeRoutes(app)
+    useCCSDKRoutes(app)
 
 	process.on("SIGINT", app.stop)
 	process.on("SIGTERM", app.stop)

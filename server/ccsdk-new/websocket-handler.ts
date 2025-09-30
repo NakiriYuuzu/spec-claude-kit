@@ -116,6 +116,33 @@ export class WebSocketHandler {
 					break
 				}
 
+				case 'cancel': {
+					// Cancel current query in session
+					const session = this.sessions.get(data.sessionId)
+					if (session) {
+						const cancelled = session.cancel()
+						if (cancelled) {
+							ws.send(JSON.stringify({
+								type: 'cancel_requested',
+								sessionId: data.sessionId,
+								message: 'Cancel request sent'
+							}))
+						} else {
+							ws.send(JSON.stringify({
+								type: 'error',
+								error: 'No active query to cancel',
+								sessionId: data.sessionId
+							}))
+						}
+					} else {
+						ws.send(JSON.stringify({
+							type: 'error',
+							error: 'Session not found'
+						}))
+					}
+					break
+				}
+
 				default:
 					ws.send(JSON.stringify({
 						type: 'error',
