@@ -67,25 +67,20 @@ export class WebSocketHandler {
 
 				case 'subscribe': {
 					// Subscribe to a specific session
-					const session = this.sessions.get(data.sessionId)
-					if (session) {
-						// Unsubscribe from current session if any
-						if (ws.data.sessionId && ws.data.sessionId !== data.sessionId) {
-							const currentSession = this.sessions.get(ws.data.sessionId)
-							currentSession?.unsubscribe(ws)
-						}
+					// If session doesn't exist in memory, create it (allows resuming historical sessions)
+					const session = this.getOrCreateSession(data.sessionId)
 
-						session.subscribe(ws)
-						ws.send(JSON.stringify({
-							type: 'subscribed',
-							sessionId: data.sessionId
-						}))
-					} else {
-						ws.send(JSON.stringify({
-							type: 'error',
-							error: 'Session not found'
-						}))
+					// Unsubscribe from current session if any
+					if (ws.data.sessionId && ws.data.sessionId !== data.sessionId) {
+						const currentSession = this.sessions.get(ws.data.sessionId)
+						currentSession?.unsubscribe(ws)
 					}
+
+					session.subscribe(ws)
+					ws.send(JSON.stringify({
+						type: 'subscribed',
+						sessionId: data.sessionId
+					}))
 					break
 				}
 

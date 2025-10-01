@@ -10,15 +10,25 @@ import {type RouteRecordRaw} from 'vue-router'
  */
 export const routes = {
     index: {
-        name: 'Home',
-        path: 'home',
+        name: 'Chat',
+        path: 'chat',
         meta: {
-            title: '首頁',
+            title: 'Chat',
             roles: [],
             requiresAuth: false
         },
-        component: () => import('@/views/Task.vue')
-    } satisfies RouteRecordRaw
+        component: () => import('@/views/Chat.vue')
+    } satisfies RouteRecordRaw,
+	notFound: {
+		name: 'Not Found',
+		path: 'not-found',
+		meta: {
+			title: 'Not Found',
+			roles: [],
+			requiresAuth: false
+		},
+		component: () => import('@/views/Chat.vue')
+	}
 }
 
 const layouts = {
@@ -32,8 +42,15 @@ const layouts = {
         path: '/',
         children: [
             routes.index
-        ]
-    }
+        ],
+		component: () => import('@/components/layout/MainLayout.vue')
+    },
+	notFound: {
+		path: '/:pathMatch(.*)*',
+		redirect: () => {
+			return { name: routes.notFound.name }
+		}
+	}
     // auth: {
     //     path: '/auth',
     //     component: () => import('@/layouts/AuthLayout.vue'),
